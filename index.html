@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Oshiwara — Place Intelligence</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="header">
+    <h1>Oshiwara</h1>
+    <p>507 places. Real reviews. One neighborhood.</p>
+  </div>
+
+  <div class="filters">
+    <input type="text" id="search" class="search-input" placeholder="Search places...">
+    <button class="chip cat-chip active" data-group="All">All</button>
+    <button class="chip cat-chip" data-group="Food & Drinks">Food & Drinks</button>
+    <button class="chip cat-chip" data-group="Health & Medical">Health & Medical</button>
+    <button class="chip cat-chip" data-group="Beauty & Wellness">Beauty & Wellness</button>
+    <button class="chip cat-chip" data-group="Shopping">Shopping</button>
+    <button class="chip cat-chip" data-group="Services">Services</button>
+    <select id="sort-select" class="filter-select">
+      <option value="reviews">Most Reviewed</option>
+      <option value="rating">Highest Rated</option>
+      <option value="alpha">Alphabetical</option>
+    </select>
+    <select id="rating-select" class="filter-select">
+      <option value="0">All Ratings</option>
+      <option value="4">4+ Stars</option>
+      <option value="3">3+ Stars</option>
+    </select>
+  </div>
+
+  <div id="stats" class="stats"></div>
+  <div id="cat-pills" class="cat-pills"></div>
+
+  <div class="view-toggle">
+    <button class="view-btn active" data-view="grid" onclick="setView('grid')">Grid</button>
+    <button class="view-btn" data-view="map" onclick="setView('map')">Map</button>
+  </div>
+
+  <div class="count-label" id="count-label"></div>
+  <div class="grid" id="grid"></div>
+
+  <div class="map-container" id="map-wrap">
+    <div id="map-area"></div>
+  </div>
+  <div class="map-tooltip" id="map-tooltip" style="display:none"></div>
+
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal" id="modal"></div>
+  </div>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
