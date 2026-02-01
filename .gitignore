@@ -1,3 +1,7 @@
 places_raw.json
 places_detailed.json
+places_merged.json
+places_final.json
+photo_urls.json
+merge_data.py
 *.env*

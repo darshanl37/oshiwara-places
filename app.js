@@ -1,257 +1,397 @@
-/* Oshiwara Place Intelligence — app.js */
+/* Oshiwara Places — app.js */
+(function(){
+'use strict';
 
-const TYPE_MAP = {
-  restaurant:'Restaurant',bar:'Bar',cafe:'Cafe',bakery:'Bakery',night_club:'Nightclub',
-  doctor:'Doctor',hospital:'Hospital',dentist:'Dentist',physiotherapist:'Physio',pharmacy:'Pharmacy',
-  gym:'Gym',spa:'Spa',beauty_salon:'Salon',hair_care:'Salon',
-  store:'Shop',clothing_store:'Clothing',grocery_or_supermarket:'Grocery',florist:'Florist',
-  liquor_store:'Liquor',home_goods_store:'Home Store',school:'School',lodging:'Hotel',
-  meal_takeaway:'Takeaway',meal_delivery:'Delivery'
+/* ===== CATEGORY MAPPING ===== */
+const CAT_MAP = {
+  food: ['restaurant','bar','cafe','bakery','night_club','meal_delivery','meal_takeaway','food'],
+  health: ['doctor','hospital','dentist','physiotherapist','pharmacy','health','veterinary_care'],
+  beauty: ['beauty_salon','hair_care','spa','gym'],
+  shopping: ['store','clothing_store','shoe_store','jewelry_store','shopping_mall','electronics_store',
+             'home_goods_store','furniture_store','pet_store','book_store','convenience_store',
+             'supermarket','hardware_store','bicycle_store'],
+  services: ['real_estate_agency','insurance_agency','travel_agency','car_repair','car_dealer',
+             'car_wash','atm','bank','accounting','lawyer','locksmith','painter','plumber',
+             'electrician','moving_company','storage','laundry','lodging','school','university']
 };
-
-const CAT_GROUPS = {
-  'Food & Drinks':['restaurant','bar','cafe','bakery','night_club','meal_takeaway','meal_delivery','liquor_store'],
-  'Health & Medical':['doctor','hospital','dentist','physiotherapist','pharmacy','health'],
-  'Beauty & Wellness':['beauty_salon','hair_care','spa','gym'],
-  'Shopping':['store','clothing_store','grocery_or_supermarket','florist','home_goods_store'],
-  'Services':['school','lodging','local_government_office','storage']
-};
-
-const GRADIENTS = [
-  ['#f97316','#eab308'],['#8b5cf6','#6366f1'],['#ec4899','#f43f5e'],
-  ['#14b8a6','#06b6d4'],['#3b82f6','#6366f1'],['#10b981','#34d399'],
-  ['#f59e0b','#f97316'],['#8b5cf6','#ec4899']
-];
 
 function getCategory(types) {
-  const skip = new Set(['point_of_interest','establishment','food','health']);
-  for (const t of types) { if (!skip.has(t) && TYPE_MAP[t]) return TYPE_MAP[t]; }
-  for (const t of types) { if (!skip.has(t)) return t.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase()); }
-  return 'Place';
-}
-
-function getCatGroup(types) {
-  for (const [group, ts] of Object.entries(CAT_GROUPS)) {
-    if (types.some(t => ts.includes(t))) return group;
+  if (!types) return 'services';
+  for (const [cat, list] of Object.entries(CAT_MAP)) {
+    if (types.some(t => list.includes(t))) return cat;
   }
-  return 'Services';
+  return 'services';
 }
 
-function hash(s) { let h=0; for(let i=0;i<s.length;i++) h=((h<<5)-h)+s.charCodeAt(i)|0; return Math.abs(h); }
-
-function gradient(place) {
-  const g = GRADIENTS[hash(place.name) % GRADIENTS.length];
-  return `linear-gradient(135deg,${g[0]},${g[1]})`;
+function getCategoryLabel(cat) {
+  return {food:'Food & Drinks',health:'Health & Medical',beauty:'Beauty & Wellness',
+          shopping:'Shopping',services:'Services'}[cat] || 'Other';
 }
 
-function starsHTML(rating, size) {
-  const full = Math.floor(rating), half = rating - full >= 0.25;
-  let s = '';
-  for (let i=0;i<5;i++) {
-    if (i < full) s += '\u2605';
-    else if (i === full && half) s += '\u2605';
-    else s += '\u2606';
-  }
-  return `<span class="stars" style="font-size:${size||14}px">${s}</span>`;
-}
-
-function priceHTML(level) {
-  if (!level) return '';
-  return `<span class="price">${'$'.repeat(level)}</span>`;
-}
-
-function statusBadge(p) {
-  if (p.business_status === 'CLOSED_TEMPORARILY' || p.business_status === 'CLOSED_PERMANENTLY')
-    return '<span class="badge-closed">Closed</span>';
-  if (p.open_now === true) return '<span class="badge-open">Open</span>';
-  if (p.open_now === false) return '<span class="badge-closed">Closed</span>';
+function getTypeLabel(types) {
+  if (!types || !types.length) return '';
+  const map = {restaurant:'Restaurant',bar:'Bar',cafe:'Cafe',bakery:'Bakery',doctor:'Doctor',
+    hospital:'Hospital',dentist:'Dentist',pharmacy:'Pharmacy',beauty_salon:'Salon',
+    hair_care:'Hair Care',spa:'Spa',gym:'Gym',store:'Store',night_club:'Nightclub'};
+  for (const t of types) { if (map[t]) return map[t]; }
   return '';
 }
 
-// Enrich places
+/* ===== STARS ===== */
+function starsHTML(rating, size) {
+  if (!rating) return '';
+  const full = Math.floor(rating);
+  const half = rating - full >= 0.3;
+  const empty = 5 - full - (half ? 1 : 0);
+  const sz = size || 14;
+  let s = `<span class="stars" style="font-size:${sz}px">`;
+  for (let i = 0; i < full; i++) s += '\u2605';
+  if (half) s += '\u2606';
+  for (let i = 0; i < empty; i++) s += '\u2606';
+  return s + '</span>';
+}
+
+/* ===== GRADIENT CLASS ===== */
+function gradClass(types) {
+  return 'grad-' + getCategory(types);
+}
+
+/* ===== SOURCE BADGE ===== */
+function srcBadge(name) {
+  const n = name.toLowerCase();
+  if (n.includes('google')) return '<span class="card-src cs-google">Google</span>';
+  if (n.includes('magicpin')) return '<span class="card-src cs-magicpin">MagicPin</span>';
+  if (n.includes('tripadvisor')) return '<span class="card-src cs-tripadvisor">TripAdvisor</span>';
+  if (n.includes('practo')) return '<span class="card-src cs-practo">Practo</span>';
+  if (n.includes('slurrp')) return '<span class="card-src cs-slurrp">Slurrp</span>';
+  if (n.includes('websearch') || n.includes('blog')) return '<span class="card-src cs-blog">Blog</span>';
+  return `<span class="card-src cs-blog">${name}</span>`;
+}
+
+/* ===== ENRICH DATA ===== */
 PLACES.forEach(p => {
-  p._cat = getCategory(p.types || []);
-  p._group = getCatGroup(p.types || []);
+  p._cat = getCategory(p.types);
+  p._searchText = [p.name, p.address, p.formatted_address,
+    p.known_for, (p.cuisines||[]).join(' '), getCategoryLabel(p._cat),
+    getTypeLabel(p.types)].filter(Boolean).join(' ').toLowerCase();
 });
 
-// State
-let filters = { search:'', group:'All', sort:'reviews', minRating:0 };
-let view = 'grid';
+/* ===== STATE ===== */
+let filtered = [...PLACES];
+let displayed = 0;
+const BATCH = 30;
+let currentCat = 'all';
+let currentSort = 'reviews';
+let currentRating = 0;
+let currentSearch = '';
+let hasReviewsOnly = false;
 
-function getFiltered() {
-  let list = PLACES.filter(p => {
-    if (filters.search && !p.name.toLowerCase().includes(filters.search.toLowerCase())) return false;
-    if (filters.group !== 'All' && p._group !== filters.group) return false;
-    if (filters.minRating && (p.rating||0) < filters.minRating) return false;
+/* ===== DOM ===== */
+const grid = document.getElementById('cardsGrid');
+const loadMore = document.getElementById('loadMore');
+const resultCount = document.getElementById('resultCount');
+const searchInput = document.getElementById('searchInput');
+const searchClear = document.getElementById('searchClear');
+const sortSelect = document.getElementById('sortSelect');
+const ratingFilter = document.getElementById('ratingFilter');
+const hasReviewsCheck = document.getElementById('hasReviews');
+const modalOverlay = document.getElementById('modalOverlay');
+const modalContent = document.getElementById('modalContent');
+const modalClose = document.getElementById('modalClose');
+
+/* ===== FILTER & SORT ===== */
+function applyFilters() {
+  filtered = PLACES.filter(p => {
+    if (currentCat !== 'all' && p._cat !== currentCat) return false;
+    if (currentRating && (!p.rating || p.rating < currentRating)) return false;
+    if (hasReviewsOnly && (!p.reviews || !p.reviews.length)) return false;
+    if (currentSearch && !p._searchText.includes(currentSearch)) return false;
     return true;
   });
-  if (filters.sort === 'reviews') list.sort((a,b) => (b.user_ratings_total||0)-(a.user_ratings_total||0));
-  else if (filters.sort === 'rating') list.sort((a,b) => (b.rating||0)-(a.rating||0));
-  else if (filters.sort === 'alpha') list.sort((a,b) => a.name.localeCompare(b.name));
-  return list;
+  if (currentSort === 'reviews') filtered.sort((a,b) => (b.user_ratings_total||0) - (a.user_ratings_total||0));
+  else if (currentSort === 'rating') filtered.sort((a,b) => (b.rating||0) - (a.rating||0));
+  else filtered.sort((a,b) => (a.name||'').localeCompare(b.name||''));
+  displayed = 0;
+  grid.innerHTML = '';
+  renderBatch();
+  resultCount.textContent = `Showing ${filtered.length} of ${PLACES.length} places`;
 }
 
-function renderStats() {
-  const el = document.getElementById('stats');
-  const totalReviews = PLACES.reduce((s,p) => s+(p.user_ratings_total||0), 0);
-  const avgRating = (PLACES.reduce((s,p) => s+(p.rating||0), 0)/PLACES.length).toFixed(1);
-  const groups = {};
-  PLACES.forEach(p => { groups[p._group] = (groups[p._group]||0)+1; });
-  el.innerHTML = `
-    <div class="stat"><div class="val">${PLACES.length}</div><div class="label">Places</div></div>
-    <div class="stat"><div class="val">${avgRating}</div><div class="label">Avg Rating</div></div>
-    <div class="stat"><div class="val">${(totalReviews/1000).toFixed(0)}K</div><div class="label">Total Reviews</div></div>
-  `;
-  const pills = document.getElementById('cat-pills');
-  pills.innerHTML = Object.entries(groups).sort((a,b)=>b[1]-a[1])
-    .map(([g,c])=>`<span class="cat-pill">${g} (${c})</span>`).join('');
+/* ===== RENDER CARDS ===== */
+function renderBatch() {
+  const end = Math.min(displayed + BATCH, filtered.length);
+  const frag = document.createDocumentFragment();
+  for (let i = displayed; i < end; i++) {
+    frag.appendChild(createCard(filtered[i]));
+  }
+  grid.appendChild(frag);
+  displayed = end;
+  loadMore.style.display = displayed < filtered.length ? 'block' : 'none';
+  observeImages();
 }
 
-function renderGrid() {
-  const list = getFiltered();
-  const container = document.getElementById('grid');
-  document.getElementById('count-label').textContent = `Showing ${list.length} places`;
-  if (!list.length) { container.innerHTML = '<div class="no-results">No places found.</div>'; return; }
-  container.innerHTML = list.map((p,i) => `
-    <div class="card" onclick="openModal(${i})" data-idx="${i}">
-      <div class="card-img" style="background:${gradient(p)}">${p.name[0]}</div>
-      <div class="card-body">
-        <div class="card-name">${esc(p.name)}${statusBadge(p)}</div>
-        <span class="card-cat">${p._cat}</span>
-        <div class="card-rating">${starsHTML(p.rating||0)} <b>${p.rating||'N/A'}</b> <span style="color:var(--muted)">(${(p.user_ratings_total||0).toLocaleString()})</span> ${priceHTML(p.price_level)}</div>
-        <div class="card-addr">${esc(p.address||'')}</div>
-      </div>
+function createCard(p) {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.onclick = () => openModal(p);
+
+  const cat = getCategoryLabel(p._cat);
+  const typeLabel = getTypeLabel(p.types) || cat;
+  const hasPhoto = !!p.photo_url;
+  const initial = (p.name||'?')[0].toUpperCase();
+
+  let imgHTML;
+  if (hasPhoto) {
+    imgHTML = `<img class="card-img" data-src="${p.photo_url}" alt="${esc(p.name)}" loading="lazy">`;
+  } else {
+    imgHTML = `<div class="card-img-placeholder ${gradClass(p.types)}">${initial}</div>`;
+  }
+
+  let sources = '<span class="card-src cs-google">Google</span>';
+  if (p.external_source_names) {
+    sources += p.external_source_names.map(srcBadge).join('');
+  }
+
+  let extras = '';
+  if (p.open_now === true) extras += '<span class="card-open">Open now</span> ';
+  if (p.known_for) extras += `<div class="card-known">Known for: ${esc(p.known_for.substring(0,100))}</div>`;
+  if (p.cuisines && p.cuisines.length) {
+    extras += '<div class="card-cuisines">' + p.cuisines.slice(0,4).map(c => `<span class="cuisine-tag">${esc(c)}</span>`).join('') + '</div>';
+  }
+  if (p.cost_for_two) extras += `<div class="card-cost">\u20B9${p.cost_for_two.toLocaleString('en-IN')} for two</div>`;
+
+  card.innerHTML = `
+    <div class="card-img-wrap">
+      ${imgHTML}
+      <span class="card-badge">${typeLabel}</span>
     </div>
-  `).join('');
-  // Store filtered list for modal
-  window._filtered = list;
+    <div class="card-body">
+      <div class="card-name">${esc(p.name)}</div>
+      <div class="card-rating">
+        ${starsHTML(p.rating)} <span class="rating-num">${p.rating||'N/A'}</span>
+        <span class="rating-count">(${(p.user_ratings_total||0).toLocaleString()} reviews)</span>
+      </div>
+      <div class="card-sources">${sources}</div>
+      ${extras}
+      <div class="card-address">${esc(p.formatted_address || p.address || '')}</div>
+    </div>`;
+  return card;
 }
 
-function esc(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
-
-function openModal(idx) {
-  const p = window._filtered[idx];
-  const m = document.getElementById('modal');
-  const overlay = document.getElementById('modal-overlay');
-
-  // Rating breakdown from embedded reviews
-  const breakdown = [0,0,0,0,0];
-  (p.reviews||[]).forEach(r => { if(r.rating>=1&&r.rating<=5) breakdown[r.rating-1]++; });
-  const maxB = Math.max(...breakdown,1);
-
-  let html = `<div class="modal-header" style="position:relative">
-    <h2>${esc(p.name)}</h2>
-    <button class="modal-close" onclick="closeModal()">&times;</button>
-    <div style="margin-top:6px">${starsHTML(p.rating||0,18)} <b>${p.rating||'N/A'}</b> &middot; ${(p.user_ratings_total||0).toLocaleString()} reviews &middot; <span class="card-cat">${p._cat}</span> ${priceHTML(p.price_level)}</div>
-  </div><div class="modal-body">`;
-
-  if (p.editorial_summary) html += `<div class="editorial">${esc(p.editorial_summary)}</div>`;
-
-  if (p.formatted_address) html += `<div class="info-row"><span class="icon">📍</span>${esc(p.formatted_address)}</div>`;
-  if (p.phone) html += `<div class="info-row"><span class="icon">📞</span><a href="tel:${p.phone}">${esc(p.phone)}</a></div>`;
-  if (p.website) html += `<div class="info-row"><span class="icon">🔗</span><a href="${esc(p.website)}" target="_blank">${esc(p.website)}</a></div>`;
-  if (p.google_url) html += `<div class="info-row"><span class="icon">🗺</span><a href="${esc(p.google_url)}" target="_blank">View on Google Maps</a></div>`;
-
-  if (p.opening_hours && p.opening_hours.length) {
-    html += `<div class="hours-list"><b>Hours:</b><br>${p.opening_hours.map(h=>esc(h)).join('<br>')}</div>`;
+/* ===== LAZY IMAGES ===== */
+let imgObserver;
+function observeImages() {
+  if (!imgObserver) {
+    imgObserver = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          const img = e.target;
+          if (img.dataset.src) { img.src = img.dataset.src; delete img.dataset.src; }
+          imgObserver.unobserve(img);
+        }
+      });
+    }, {rootMargin:'200px'});
   }
+  grid.querySelectorAll('img[data-src]').forEach(img => imgObserver.observe(img));
+}
 
-  if (breakdown.some(v=>v>0)) {
-    html += '<div class="rating-breakdown"><b>Rating Breakdown</b>';
-    for (let i=4;i>=0;i--) {
-      const pct = (breakdown[i]/maxB*100).toFixed(0);
-      html += `<div class="rating-bar"><span>${i+1}★</span><div class="bar-bg"><div class="bar-fill" style="width:${pct}%"></div></div><span>${breakdown[i]}</span></div>`;
-    }
-    html += '</div>';
-  }
+/* ===== INFINITE SCROLL ===== */
+const scrollObserver = new IntersectionObserver((entries) => {
+  if (entries[0].isIntersecting && displayed < filtered.length) renderBatch();
+}, {rootMargin:'400px'});
+scrollObserver.observe(loadMore);
 
+/* ===== EVENTS ===== */
+document.getElementById('categoryPills').addEventListener('click', e => {
+  const btn = e.target.closest('.pill');
+  if (!btn) return;
+  document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  currentCat = btn.dataset.cat;
+  applyFilters();
+});
+
+sortSelect.addEventListener('change', () => { currentSort = sortSelect.value; applyFilters(); });
+ratingFilter.addEventListener('change', () => { currentRating = parseFloat(ratingFilter.value); applyFilters(); });
+hasReviewsCheck.addEventListener('change', () => { hasReviewsOnly = hasReviewsCheck.checked; applyFilters(); });
+
+let searchTimeout;
+searchInput.addEventListener('input', () => {
+  clearTimeout(searchTimeout);
+  searchClear.style.display = searchInput.value ? 'flex' : 'none';
+  searchTimeout = setTimeout(() => {
+    currentSearch = searchInput.value.trim().toLowerCase();
+    applyFilters();
+  }, 250);
+});
+searchClear.addEventListener('click', () => {
+  searchInput.value = '';
+  searchClear.style.display = 'none';
+  currentSearch = '';
+  applyFilters();
+});
+
+/* ===== MODAL ===== */
+function openModal(p) {
+  const cat = getCategoryLabel(p._cat);
+  const initial = (p.name||'?')[0].toUpperCase();
+  const hasPhoto = !!p.photo_url;
+
+  let heroHTML = hasPhoto
+    ? `<img class="modal-hero" src="${p.photo_url}" alt="${esc(p.name)}">`
+    : `<div class="modal-hero-placeholder ${gradClass(p.types)}">${initial}</div>`;
+
+  let sourcesHTML = `<div class="modal-src-card"><strong class="cs-google">Google</strong>${p.rating||'N/A'} \u2605 &middot; ${(p.user_ratings_total||0).toLocaleString()} reviews</div>`;
+  if (p.magicpin_rating) sourcesHTML += `<div class="modal-src-card"><strong class="cs-magicpin">MagicPin</strong>${p.magicpin_rating}</div>`;
+  if (p.tripadvisor_info) sourcesHTML += `<div class="modal-src-card"><strong class="cs-tripadvisor">TripAdvisor</strong>${esc(p.tripadvisor_info.substring(0,120))}</div>`;
+
+  // Rating breakdown from reviews
+  let breakdownHTML = '';
   if (p.reviews && p.reviews.length) {
-    html += '<div class="review-list"><b>Reviews</b>';
-    p.reviews.forEach(r => {
-      html += `<div class="review-item"><div class="review-author">${esc(r.author)}</div>
-        <div class="review-meta">${starsHTML(r.rating||0)} &middot; ${esc(r.time||'')}</div>
-        <div class="review-text">${esc(r.text||'')}</div></div>`;
-    });
-    html += '</div>';
+    const counts = [0,0,0,0,0];
+    p.reviews.forEach(r => { if (r.rating>=1&&r.rating<=5) counts[r.rating-1]++; });
+    const max = Math.max(...counts, 1);
+    breakdownHTML = '<div class="rating-breakdown">';
+    for (let i = 4; i >= 0; i--) {
+      const pct = (counts[i] / max * 100).toFixed(0);
+      breakdownHTML += `<div class="rb-row"><span class="rb-label">${i+1}</span>${starsHTML(1,12)}<div class="rb-bar"><div class="rb-fill" style="width:${pct}%"></div></div><span class="rb-count">${counts[i]}</span></div>`;
+    }
+    breakdownHTML += '</div>';
   }
 
-  html += '</div>';
-  m.innerHTML = html;
-  overlay.classList.add('open');
+  // Reviews list
+  let reviewsHTML = '';
+  if (p.reviews && p.reviews.length) {
+    const sorted = [...p.reviews].sort((a,b) => (b.rating||0) - (a.rating||0));
+    reviewsHTML = sorted.map(r => {
+      const avatar = r.profile_photo
+        ? `<div class="review-avatar"><img src="${r.profile_photo}" alt=""></div>`
+        : `<div class="review-avatar">${(r.author||'?')[0].toUpperCase()}</div>`;
+      return `<div class="review-item">
+        <div class="review-header">${avatar}<div><div class="review-author">${esc(r.author||'Anonymous')}</div><div class="review-time">${esc(r.time||'')}</div></div></div>
+        <div class="review-stars">${starsHTML(r.rating,13)}</div>
+        <div class="review-text">${esc(r.text||'')}</div>
+      </div>`;
+    }).join('');
+  }
+
+  // Info grid
+  let infoItems = '';
+  if (p.phone) infoItems += `<div class="modal-info-item"><span>Phone</span><a href="tel:${p.phone}">${esc(p.phone)}</a></div>`;
+  if (p.website) infoItems += `<div class="modal-info-item"><span>Website</span><a href="${p.website}" target="_blank" rel="noopener">${esc(p.website.replace(/^https?:\/\//,'').substring(0,40))}</a></div>`;
+  if (p.google_url) infoItems += `<div class="modal-info-item"><span>Directions</span><a href="${p.google_url}" target="_blank" rel="noopener">Open in Google Maps</a></div>`;
+  if (p.opening_hours) infoItems += `<div class="modal-info-item"><span>Hours</span>${esc(typeof p.opening_hours === 'string' ? p.opening_hours : (Array.isArray(p.opening_hours) ? p.opening_hours.join(', ') : ''))}</div>`;
+  if (p.cost_for_two) infoItems += `<div class="modal-info-item"><span>Cost for two</span>\u20B9${p.cost_for_two.toLocaleString('en-IN')}</div>`;
+
+  let sectionsHTML = '';
+  if (p.editorial_summary) sectionsHTML += `<div class="modal-section"><h3>About</h3><p>${esc(p.editorial_summary)}</p></div>`;
+  if (p.blog_description) sectionsHTML += `<div class="modal-section"><h3>From blogs</h3><p>${esc(p.blog_description)}</p></div>`;
+  if (p.known_for) sectionsHTML += `<div class="modal-section"><h3>Known for</h3><p>${esc(p.known_for)}</p></div>`;
+  if (p.cuisines && p.cuisines.length) sectionsHTML += `<div class="modal-section"><h3>Cuisines</h3><div class="modal-tags">${p.cuisines.map(c=>`<span class="modal-tag">${esc(c)}</span>`).join('')}</div></div>`;
+  if (p.practo_info) sectionsHTML += `<div class="modal-section"><h3>Practo</h3><p>${esc(p.practo_info)}</p></div>`;
+
+  modalContent.innerHTML = `
+    ${heroHTML}
+    <div class="modal-body">
+      <div class="modal-name">${esc(p.name)}</div>
+      <div class="modal-cat">${cat} ${p.business_status === 'CLOSED_TEMPORARILY' ? ' &middot; <span style="color:#dc2626">Temporarily Closed</span>' : ''}</div>
+      <div class="modal-rating-row">
+        <span class="modal-rating-big">${p.rating||'N/A'}</span>
+        ${starsHTML(p.rating,20)}
+        <span class="modal-review-count">${(p.user_ratings_total||0).toLocaleString()} reviews</span>
+      </div>
+      <div class="modal-sources">${sourcesHTML}</div>
+      ${sectionsHTML}
+      ${infoItems ? `<div class="modal-section"><h3>Details</h3><div class="modal-info-grid">${infoItems}</div></div>` : ''}
+      ${breakdownHTML ? `<div class="modal-section"><h3>Rating breakdown</h3>${breakdownHTML}</div>` : ''}
+      ${reviewsHTML ? `<div class="modal-section"><h3>Reviews</h3>${reviewsHTML}</div>` : ''}
+      <div class="modal-section"><h3>Address</h3><p>${esc(p.formatted_address || p.address || '')}</p></div>
+    </div>`;
+
+  modalOverlay.classList.add('open');
   document.body.style.overflow = 'hidden';
 }
 
+modalClose.addEventListener('click', closeModal);
+modalOverlay.addEventListener('click', e => { if (e.target === modalOverlay) closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
 function closeModal() {
-  document.getElementById('modal-overlay').classList.remove('open');
+  modalOverlay.classList.remove('open');
   document.body.style.overflow = '';
 }
 
-// Map
-function renderMap() {
-  const list = getFiltered();
-  const container = document.getElementById('map-area');
-  if (!list.length) { container.innerHTML = '<div class="no-results">No places to map.</div>'; return; }
-  const lats = list.map(p=>p.lat), lngs = list.map(p=>p.lng);
-  const minLat=Math.min(...lats), maxLat=Math.max(...lats), minLng=Math.min(...lngs), maxLng=Math.max(...lngs);
-  const pad=0.001, W=800, H=500;
-  const sx=v=>(v-minLng+pad)/(maxLng-minLng+2*pad)*W;
-  const sy=v=>H-(v-minLat+pad)/(maxLat-minLat+2*pad)*H;
-  const color=r=>r>=4.5?'#16a34a':r>=4?'#65a30d':r>=3?'#eab308':r>=2?'#f97316':'#dc2626';
-
-  let svg = `<svg class="map-svg" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
-  list.forEach((p,i) => {
-    svg += `<circle class="map-dot" cx="${sx(p.lng)}" cy="${sy(p.lat)}" r="4" fill="${color(p.rating||0)}" data-idx="${i}" opacity="0.8"/>`;
+/* ===== COUNT-UP ANIMATION ===== */
+const statsObserver = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.querySelectorAll('.stat-num').forEach(el => {
+        const target = parseInt(el.dataset.target);
+        const suffix = el.dataset.suffix || '';
+        const duration = 1200;
+        const start = performance.now();
+        function tick(now) {
+          const p = Math.min((now - start) / duration, 1);
+          const ease = 1 - Math.pow(1 - p, 3);
+          el.textContent = Math.round(target * ease).toLocaleString() + (p >= 1 ? suffix : '');
+          if (p < 1) requestAnimationFrame(tick);
+        }
+        requestAnimationFrame(tick);
+      });
+      statsObserver.unobserve(entry.target);
+    }
   });
-  svg += '</svg>';
-  container.innerHTML = svg;
+}, {threshold:0.3});
+statsObserver.observe(document.getElementById('statsBar'));
 
-  // Tooltips
-  const tooltip = document.getElementById('map-tooltip');
-  container.querySelectorAll('.map-dot').forEach(dot => {
-    dot.addEventListener('mouseenter', e => {
-      const p = list[+dot.dataset.idx];
-      tooltip.textContent = `${p.name} (${p.rating}★)`;
-      tooltip.style.display = 'block';
-    });
-    dot.addEventListener('mousemove', e => {
-      tooltip.style.left = e.pageX+10+'px';
-      tooltip.style.top = e.pageY-30+'px';
-    });
-    dot.addEventListener('mouseleave', () => { tooltip.style.display='none'; });
-    dot.addEventListener('click', () => { openModal(+dot.dataset.idx); });
+/* ===== GOOGLE MAP ===== */
+window.initMap = function() {
+  const center = {lat:19.137, lng:72.833};
+  const map = new google.maps.Map(document.getElementById('map'), {
+    center, zoom:15,
+    styles:[
+      {featureType:'all',elementType:'geometry',stylers:[{saturation:-20}]},
+      {featureType:'water',stylers:[{color:'#e0f0ff'}]},
+      {featureType:'road',elementType:'geometry',stylers:[{lightness:30}]},
+      {featureType:'poi',elementType:'labels',stylers:[{visibility:'off'}]}
+    ],
+    mapTypeControl:false, streetViewControl:false, fullscreenControl:false
   });
-}
 
-function setView(v) {
-  view = v;
-  document.querySelectorAll('.view-btn').forEach(b => b.classList.toggle('active', b.dataset.view===v));
-  document.getElementById('grid').style.display = v==='grid' ? '' : 'none';
-  document.getElementById('map-wrap').classList.toggle('visible', v==='map');
-  if (v==='map') renderMap();
-}
+  const catColors = {food:'#ea580c',health:'#3b82f6',beauty:'#ec4899',shopping:'#6366f1',services:'#10b981'};
+  const infoWindow = new google.maps.InfoWindow();
 
-function update() {
-  renderGrid();
-  if (view==='map') renderMap();
-}
-
-// Init
-document.addEventListener('DOMContentLoaded', () => {
-  renderStats();
-  update();
-
-  document.getElementById('search').addEventListener('input', e => { filters.search=e.target.value; update(); });
-  document.querySelectorAll('.cat-chip').forEach(c => {
-    c.addEventListener('click', () => {
-      document.querySelectorAll('.cat-chip').forEach(x=>x.classList.remove('active'));
-      c.classList.add('active');
-      filters.group = c.dataset.group;
-      update();
+  PLACES.forEach(p => {
+    if (!p.lat || !p.lng) return;
+    const color = catColors[p._cat] || '#a1a1aa';
+    const marker = new google.maps.Marker({
+      position:{lat:p.lat,lng:p.lng}, map,
+      icon:{
+        path:google.maps.SymbolPath.CIRCLE, scale:6,
+        fillColor:color, fillOpacity:.85, strokeColor:'#fff', strokeWeight:1.5
+      },
+      title:p.name
+    });
+    marker.addListener('click', () => {
+      const img = p.photo_url ? `<img src="${p.photo_url}" style="width:200px;height:120px;object-fit:cover;border-radius:8px;margin-bottom:8px">` : '';
+      infoWindow.setContent(`<div style="font-family:Inter,sans-serif;max-width:220px">
+        ${img}<div style="font-weight:600;font-size:14px">${esc(p.name)}</div>
+        <div style="color:#78716c;font-size:12px">${p.rating ? p.rating + ' \u2605' : ''} ${p.user_ratings_total ? '(' + p.user_ratings_total.toLocaleString() + ')' : ''}</div>
+      </div>`);
+      infoWindow.open(map, marker);
     });
   });
-  document.getElementById('sort-select').addEventListener('change', e => { filters.sort=e.target.value; update(); });
-  document.getElementById('rating-select').addEventListener('change', e => { filters.minRating=+e.target.value; update(); });
+};
 
-  document.getElementById('modal-overlay').addEventListener('click', e => { if(e.target===e.currentTarget) closeModal(); });
-  document.addEventListener('keydown', e => { if(e.key==='Escape') closeModal(); });
-});
+/* ===== ESCAPE HTML ===== */
+function esc(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+/* ===== INIT ===== */
+applyFilters();
+
+})();

@@ -1,58 +1,105 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Oshiwara — Place Intelligence</title>
-  <link rel="stylesheet" href="styles.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Oshiwara Places — Discover 500+ places in Oshiwara, Mumbai</title>
+<meta name="description" content="Discover 500+ places in Oshiwara, Mumbai. Reviews aggregated from Google, Zomato, MagicPin, TripAdvisor, Practo & local blogs.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="header">
-    <h1>Oshiwara</h1>
-    <p>507 places. Real reviews. One neighborhood.</p>
+
+<header class="hero">
+  <div class="hero-inner">
+    <div class="hero-badges">
+      <span class="src-badge sb-google">Google</span>
+      <span class="src-badge sb-magicpin">MagicPin</span>
+      <span class="src-badge sb-tripadvisor">TripAdvisor</span>
+      <span class="src-badge sb-practo">Practo</span>
+      <span class="src-badge sb-slurrp">Slurrp</span>
+      <span class="src-badge sb-blog">Blogs</span>
+    </div>
+    <h1 class="hero-title">Oshiwara</h1>
+    <p class="hero-subtitle">Discover 500+ places through reviews from Google, Zomato, MagicPin, TripAdvisor, Practo &amp; local blogs</p>
+    <div class="search-wrap">
+      <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <input type="text" id="searchInput" class="search-input" placeholder="Search places, cuisines, categories...">
+      <button id="searchClear" class="search-clear" style="display:none">&times;</button>
+    </div>
+    <p class="hero-agg">Aggregating from <strong>6+ sources</strong> across Oshiwara &amp; Andheri West</p>
   </div>
+</header>
 
-  <div class="filters">
-    <input type="text" id="search" class="search-input" placeholder="Search places...">
-    <button class="chip cat-chip active" data-group="All">All</button>
-    <button class="chip cat-chip" data-group="Food & Drinks">Food & Drinks</button>
-    <button class="chip cat-chip" data-group="Health & Medical">Health & Medical</button>
-    <button class="chip cat-chip" data-group="Beauty & Wellness">Beauty & Wellness</button>
-    <button class="chip cat-chip" data-group="Shopping">Shopping</button>
-    <button class="chip cat-chip" data-group="Services">Services</button>
-    <select id="sort-select" class="filter-select">
-      <option value="reviews">Most Reviewed</option>
-      <option value="rating">Highest Rated</option>
-      <option value="alpha">Alphabetical</option>
-    </select>
-    <select id="rating-select" class="filter-select">
-      <option value="0">All Ratings</option>
-      <option value="4">4+ Stars</option>
-      <option value="3">3+ Stars</option>
-    </select>
+<section class="stats-bar" id="statsBar">
+  <div class="stat"><span class="stat-num" data-target="508">0</span><span class="stat-label">Places</span></div>
+  <div class="stat"><span class="stat-num" data-target="1000" data-suffix="+">0</span><span class="stat-label">Reviews</span></div>
+  <div class="stat"><span class="stat-num" data-target="6" data-suffix="+">0</span><span class="stat-label">Sources</span></div>
+  <div class="stat"><span class="stat-num" data-target="300" data-suffix="+">0</span><span class="stat-label">Photos</span></div>
+</section>
+
+<section class="map-section">
+  <div id="map" class="map-container"></div>
+</section>
+
+<section class="filters-bar" id="filtersBar">
+  <div class="filters-inner">
+    <div class="filter-row">
+      <div class="category-pills" id="categoryPills">
+        <button class="pill active" data-cat="all">All</button>
+        <button class="pill" data-cat="food">Food &amp; Drinks</button>
+        <button class="pill" data-cat="health">Health &amp; Medical</button>
+        <button class="pill" data-cat="beauty">Beauty &amp; Wellness</button>
+        <button class="pill" data-cat="shopping">Shopping</button>
+        <button class="pill" data-cat="services">Services</button>
+      </div>
+      <div class="filter-controls">
+        <select id="sortSelect" class="filter-select">
+          <option value="reviews">Most Reviewed</option>
+          <option value="rating">Highest Rated</option>
+          <option value="az">A-Z</option>
+        </select>
+        <select id="ratingFilter" class="filter-select">
+          <option value="0">All Ratings</option>
+          <option value="3">3+ Stars</option>
+          <option value="4">4+ Stars</option>
+          <option value="4.5">4.5+ Stars</option>
+        </select>
+        <label class="toggle-label">
+          <input type="checkbox" id="hasReviews">
+          <span class="toggle-switch"></span>
+          Has Reviews
+        </label>
+      </div>
+    </div>
+    <div class="result-count" id="resultCount">Showing 508 of 508 places</div>
   </div>
+</section>
 
-  <div id="stats" class="stats"></div>
-  <div id="cat-pills" class="cat-pills"></div>
-
-  <div class="view-toggle">
-    <button class="view-btn active" data-view="grid" onclick="setView('grid')">Grid</button>
-    <button class="view-btn" data-view="map" onclick="setView('map')">Map</button>
+<main class="cards-section">
+  <div class="cards-grid" id="cardsGrid"></div>
+  <div class="load-more" id="loadMore" style="display:none">
+    <div class="spinner"></div>
+    Loading more places...
   </div>
+</main>
 
-  <div class="count-label" id="count-label"></div>
-  <div class="grid" id="grid"></div>
-
-  <div class="map-container" id="map-wrap">
-    <div id="map-area"></div>
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal" id="modal">
+    <button class="modal-close" id="modalClose">&times;</button>
+    <div class="modal-content" id="modalContent"></div>
   </div>
-  <div class="map-tooltip" id="map-tooltip" style="display:none"></div>
+</div>
 
-  <div class="modal-overlay" id="modal-overlay">
-    <div class="modal" id="modal"></div>
-  </div>
+<footer class="footer">
+  <p>Built for Oshiwara. Data aggregated from Google, MagicPin, TripAdvisor, Practo, Slurrp, BhukkadCompany, and local blogs.</p>
+  <p class="footer-date">Last updated: February 2026</p>
+</footer>
 
-  <script src="data.js"></script>
-  <script src="app.js"></script>
+<script src="data.js"></script>
+<script src="app.js"></script>
+<script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAG6KG4TKgP5DEtK1d-XQuOeCkO0AfFRfk&callback=initMap"></script>
 </body>
 </html>
